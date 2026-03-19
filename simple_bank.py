@@ -82,15 +82,28 @@ class Bank:
         self.cursor.execute("INSERT INTO accounts (user_id, acc_type, balance) VALUES (?, ?, ?)", (user_id, acc_type, 0.00))
         self.conn.commit()
 
-    def dashboard(self):
+    def dashboard(self, user_id):
         print("Welcome to dashboard!")
-        
-        print("You have an account. Here are your options:")
-        print("1. View Balance")
-        print("2. Deposit")
-        print("3. Withdraw")
-        print("4. Logout")
-        
+
+        if self.check_account(user_id):
+            print("You have an account. Here are your options:")
+            print("1. View Balance")
+            print("2. Deposit")
+            print("3. Withdraw")
+            print("4. Logout")
+        else:
+            print("You don't have an account:")
+            acc_type = input("1. Create Checking Account, enter (c)\n"
+                             "2. Create Savings Account, enter (s)\n"
+                             "Enter your choice: ").lower()
+            if acc_type == 'c':
+                self.create_account(user_id, "Checking")
+            elif acc_type == 's':
+                self.create_account(user_id, "Savings")
+            else:
+                print("Invalid option. Please choose 'c' or 's'.")
+            self.dashboard(user_id)
+            
     
     def check_password(self, password):
         if len(password) == 6 and password.isdigit():
@@ -104,6 +117,12 @@ class Bank:
         hashed_password = self.cursor.fetchone()
         
         return "".join(hashed_password)
+
+    def get_uuid(self, username):
+        self.cursor.execute("SELECT id FROM users WHERE username=?", (username,))
+        user_id = self.cursor.fetchone()
+        
+        return "".join(user_id)
     
     def register(self):
         print("Register")
@@ -131,7 +150,7 @@ class Bank:
             
             if self.check_user(username):
                 if verify_text_hash(self.get_hash(username), password):
-                    self.dashboard()
+                    self.dashboard(self.get_uuid(username))
                 else:
                     print("Invalid password. Please try again.")
             else:
