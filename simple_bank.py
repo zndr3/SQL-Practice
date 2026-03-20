@@ -5,6 +5,8 @@ import base64
 import hmac
 from database.hash import *
 import uuid
+import pandas as pd
+
 
 class InvalidPin(Exception):
     pass
@@ -78,33 +80,109 @@ class Bank:
         self.cursor.execute("SELECT * FROM accounts WHERE user_id=?", (user_id,))
         return self.cursor.fetchone()
     
-    def create_account(self, user_id, acc_type):
-        self.cursor.execute("INSERT INTO accounts (user_id, acc_type, balance) VALUES (?, ?, ?)", (user_id, acc_type, 0.00))
-        self.conn.commit()
+    def create_account(self, user_id):
+        acc_type = input("1. Create Checking Account, enter (c)\n"
+                        "2. Create Savings Account, enter (s)\n"
+                        "Enter your choice: ").lower()
+        if acc_type == 'c':
+            acc_type = "Checking"
+        elif acc_type == 's':
+            acc_type = "Savings"
+        else:
+            print("Invalid option. Please choose 'c' or 's'.")
+        # self.dashboard(user_id)
+        if self.check_account(user_id):
+            acc_num = self.get_acc_num(user_id)[0] + 1
+            self.cursor.execute("INSERT INTO accounts (user_id, acc_type, balance, acc_num) VALUES (?, ?, ?, ?)", (user_id, acc_type, 0.00, acc_num))
+            self.conn.commit()
+        else:
+            acc_num = 1
+            self.cursor.execute("INSERT INTO accounts (user_id, acc_type, balance, acc_num) VALUES (?, ?, ?, ?)", (user_id, acc_type, 0.00, acc_num))
+            self.conn.commit()
 
-    def dashboard(self, user_id):
-        print("Welcome to dashboard!")
+
+    def get_acc_num(self, user_id):
+        self.cursor.execute("SELECT acc_num FROM accounts WHERE user_id=? ORDER BY acc_num DESC", (user_id,))
+        return self.cursor.fetchone()
+        
+    def close_acc_num(self, user_id):
+        # print(self.get_acc_nums(user_id))
+        acc_nums = [acc[0] for acc in self.get_acc_nums(user_id)]
+        acc_num = int(input("Enter account number to close: "))
+        if acc_num in acc_nums:
+            if not self.get_balance(user_id, acc_num):
+                self.cursor.execute("DELETE FROM accounts WHERE user_id=? AND acc_num=?", (user_id, acc_num))
+                self.conn.commit()
+            else:
+                print("Cannot close account with balance.\n")
+                print("Please choose another account number.")
+                self.close_acc_num(user_id)
+        else:
+            print("No account found with that number.")
+
+    def get_balance(self, user_id, acc_num):
+        self.cursor.execute("SELECT balance FROM accounts WHERE user_id=? AND acc_num=?", (user_id, acc_num))
+        return self.cursor.fetchone()[0]
+
+    
+    def get_acc_nums(self, user_id):
+        self.cursor.execute("SELECT acc_num FROM accounts WHERE user_id=?", (user_id,))
+        return self.cursor.fetchall()
+        
+
+    def get_accounts(self, user_id):
+
+        # Separate the query from the data
+        query = "SELECT acc_num, acc_type, balance FROM accounts WHERE user_id = ?"
+        params = (user_id,)
+
+        # Pass them into read_sql_query separately
+        df = pd.read_sql_query(query, self.conn, params=params)
+
+        print(df)
+
+    def dashboard(self, user_id, username):
+        # isloggedin = True
+        # while isloggedin:
+        
+        print("Hi " + username + ", Welcome to dashboard!")
 
         if self.check_account(user_id):
             print("You have an account. Here are your options:")
-            print("1. View Balance")
-            print("2. Deposit")
-            print("3. Withdraw")
-            print("4. Logout")
+            self.get_accounts(user_id)
+            print("1. Create Account")
+            print("2. Close Account")
+            print("3. Logout")
+            choice = 0
+
+            while choice not in [1, 2, 3]:
+                choice = input("Enter choice number: ")
+                if choice == '1':
+                    self.create_account(user_id)
+                    self.dashboard(user_id, username)
+                                
+                elif choice == '2':
+                    self.close_acc_num(user_id)
+                    self.dashboard(user_id, username)
+
+                elif choice == '3':
+                    break
+                
+                else:
+                    print("Invalid option. Please choose '1' or '2'.")
+                
+
+            # self.create_account(user_id)
+            # print("1. View Balance")
+            # print("2. Deposit")
+            # print("3. Withdraw")
+            # print("4. Logout")
+
         else:
             print("You don't have an account:")
-            acc_type = input("1. Create Checking Account, enter (c)\n"
-                             "2. Create Savings Account, enter (s)\n"
-                             "Enter your choice: ").lower()
-            if acc_type == 'c':
-                self.create_account(user_id, "Checking")
-            elif acc_type == 's':
-                self.create_account(user_id, "Savings")
-            else:
-                print("Invalid option. Please choose 'c' or 's'.")
-            self.dashboard(user_id)
-            
-    
+            self.create_account(user_id)
+                
+        
     def check_password(self, password):
         if len(password) == 6 and password.isdigit():
             return True
@@ -126,42 +204,35 @@ class Bank:
     
     def register(self):
         print("Register")
-        username = input("Enter username: ")
-        password = input("Enter 6 digit PIN: ")
-
-        if not self.check_user(username):
-            if self.check_password(password):
-                hashed_password = generate_text_hash(password)
-                user_id = str(uuid.uuid4())
-                self.add_user(user_id, username, hashed_password)
-                return
+        while True:
+            username = input("Enter username: ")
+            if not self.check_user(username):
+                while True:
+                    password = input("Enter 6 digit PIN: ")
+                    if self.check_password(password):
+                        hashed_password = generate_text_hash(password)
+                        user_id = str(uuid.uuid4())
+                        self.add_user(user_id, username, hashed_password)
+                        return
+                    else:
+                        print("Invalid PIN format. Please enter a 6 digit PIN.")
             else:
-                print("Invalid PIN format. Please enter a 6 digit PIN.")
-                self.register()
-        else:
-            print("User already exists. Please choose a different username.")
-            self.register()
+                print("User already exists. Please choose a different username.")
 
     def login(self):
         print("Login")
-        try:
+        while True:
             username = input("Enter username: ")
-            password = input("Enter 6 digit PIN: ")
-            
             if self.check_user(username):
-                if verify_text_hash(self.get_hash(username), password):
-                    self.dashboard(self.get_uuid(username))
-                else:
-                    print("Invalid password. Please try again.")
+                while True:
+                    password = input("Enter 6 digit PIN: ")
+                    if verify_text_hash(self.get_hash(username), password):
+                        self.dashboard(self.get_uuid(username), username)
+                        return
+                    else:
+                        print("Invalid password. Please try again.")
             else:
                 print("No user found with that username.")
-                print("Redirecting to registration...")
-                self.register()
-
-        except UserExists as e:
-            print(e)
-        except InvalidPin as e:
-            print(e)  
         
         
 
@@ -186,24 +257,24 @@ def verify_text_hash(stored_text, provided_password):
 
 if __name__ == "__main__":
     db = Bank()
-    
-    print("Welcome to SQL Bank!")
-    
-    try:
-        enter = input("Do you want to (l)ogin or (r)egister? ").lower()
-        if enter == 'l':
-            db.login()
-        elif enter == 'r':
-            db.register()
-        else:
-            print("Invalid option. Please choose 'l' or 'r'.")
+    while True:
+        
+        print("Welcome to SQL Bank!")
+        try:
+            enter = input("Do you want to (l)ogin or (r)egister? ").lower()
+            if enter == 'l':
+                db.login()
+            elif enter == 'r':
+                db.register()
+            else:
+                print("Invalid option. Please choose 'l' or 'r'.")
 
-    except UserExists as e:
-        print(e)
-    except InvalidPin as e:
-        print(e)  
+        except UserExists as e:
+            print(e)
+        except InvalidPin as e:
+            print(e)  
 
-    except Exception as e:
-        print("Nothing for now")
+        except Exception as e:
+            print(e)
         
         
