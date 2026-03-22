@@ -93,7 +93,7 @@ class Bank:
                             "Enter Zero '0' to exit\n"
                             "Enter your choice number: ")
             if acc_type == '0':
-                return
+                break
 
             elif acc_type == '1':
                 acc_type = "Checking"
@@ -189,52 +189,61 @@ class Bank:
         self.cursor.execute("UPDATE accounts SET balance = balance - ? WHERE user_id = ? AND acc_num = ?", (amount, user_id, acc_num))
         self.cursor.execute("UPDATE accounts SET balance = balance + ? WHERE user_id = ? AND acc_num = ?", (amount, user_id, transfer_to_acc_num))
         self.conn.commit()
-        self.record_transaction(self.get_acc_id(user_id, acc_num), "Transfer" , "Withdrawal", amount, f"Account number {acc_num} transferred {amount} to account number {transfer_to_acc_num}")
+        self.record_transaction(self.get_acc_id(user_id, acc_num), "Transfer", amount, f"Account number {acc_num} transferred {amount} to account number {transfer_to_acc_num}")
         
     
     def record_transaction(self, acc_id, type, amount, desc):
         self.cursor.execute("INSERT INTO transactions (acc_id, type, amount, desc) VALUES (?, ?, ?, ?)", (acc_id, type, amount, desc))
         self.conn.commit()
 
-
     
     def manage_acc(self, user_id):
         acc_nums = [acc[0] for acc in self.get_acc_nums(user_id)]
-        acc_num = int(input("Enter account number to manage: "))
-        if acc_num in acc_nums:
-            print("1. Deposit")
-            print("2. Withdraw")
-            print("3. Transfer")
-            print("4. Back")
-            choice = input("Enter choice number: ")
+        acc_num = 0
+        while acc_num not in acc_nums:
+            try:
+                acc_num = int(input("Enter account number to manage: "))
+                if acc_num in acc_nums:
+                    print("1. Deposit")
+                    print("2. Withdraw")
+                    print("3. Transfer")
+                    choice = 0
+                    while choice not in [1, 2, 3]:
+                        try:
+                            choice = int(input("Enter Zero '0' to exit\nEnter choice number: "))
+                            if choice == 0:
+                                break
+                            elif choice == 1:
+                                amount = float(input("Enter amount to deposit: "))
+                                self.deposit(self.get_acc_id(user_id, acc_num), amount)
+                            
+                            elif choice == 2:
+                                amount = float(input("Enter amount to withdraw: "))
+                                if self.get_balance(user_id, acc_num) < amount:
+                                    print("Insufficient funds to withdraw.")
+                                else:
+                                    self.withdraw(self.get_acc_id(user_id, acc_num), amount)
 
-            if choice == '1':
-                amount = float(input("Enter amount to deposit: "))
-                self.deposit(self.get_acc_id(user_id, acc_num), amount)
-            
-            elif choice == '2':
-                amount = float(input("Enter amount to withdraw: "))
-                if self.get_balance(user_id, acc_num) < amount:
-                    print("Insufficient funds to withdraw.")
+                            elif choice == 3:
+                                transfer_to_acc_num = int(input("Enter account number to transfer to: "))
+                                if transfer_to_acc_num not in acc_nums:
+                                    print("No account found with that number.")
+                                elif transfer_to_acc_num == acc_num:
+                                    print("Cannot transfer to the same account.")
+                                else:
+                                    amount = float(input("Enter amount to transfer: "))
+                                    if self.get_balance(user_id, acc_num) < amount:
+                                        print("Insufficient funds to transfer.")
+                                    else:
+                                        self.transfer(user_id, acc_num, transfer_to_acc_num, amount)
+                        except ValueError:
+                            print("Invalid input. Please enter a valid account number.")
                 else:
-                    self.withdraw(self.get_acc_id(user_id, acc_num), amount)
-
-            elif choice == '3':
-                transfer_to_acc_num = int(input("Enter account number to transfer to: "))
-                if transfer_to_acc_num not in acc_nums:
                     print("No account found with that number.")
-                elif transfer_to_acc_num == acc_num:
-                    print("Cannot transfer to the same account.")
-                else:
-                    amount = float(input("Enter amount to transfer: "))
-                    if self.get_balance(user_id, acc_num) < amount:
-                        print("Insufficient funds to transfer.")
-                    else:
-                        self.transfer(user_id, acc_num, transfer_to_acc_num, amount)
-            
-        else:
-            print("No account found with that number.")
-        
+
+            except ValueError:
+                print("Invalid input. Please enter a valid account number.")
+                
 
     def dashboard(self, user_id, username):
         # isloggedin = True
@@ -274,7 +283,6 @@ class Bank:
         else:
             print("You don't have an account:")
             self.create_account(user_id)
-            self.dashboard(user_id, username)
                 
         
     def check_password(self, password):
@@ -298,6 +306,7 @@ class Bank:
     
     def register(self):
         print("Register")
+        
         while True:
             username = input("Enter username: ")
             if not self.check_user(username):
