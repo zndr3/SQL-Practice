@@ -8,7 +8,6 @@ from database.hash import *
 import uuid
 import pandas as pd
 
-
 class InvalidPin(Exception):
     pass
 
