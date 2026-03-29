@@ -9,7 +9,7 @@ import pandas as pd
 fake = Faker(['en_IN'])
 
 # Use 'with' to connect to the SQLite database and automatically close the connection when done
-with sqlite3.connect('bank_data.sqlite3') as connection:
+with sqlite3.connect('./simple_bank/bank_data.sqlite3') as connection:
 
     # Create a cursor object
     # cursor = connection.cursor()
@@ -105,14 +105,17 @@ with sqlite3.connect('bank_data.sqlite3') as connection:
         cursor.execute("SELECT acc_num FROM accounts WHERE user_id=? ORDER BY acc_num DESC", (user_id,))
         print(cursor.fetchone()[0])
 
-    def get_acc_id(user_id, acc_num):
+    def get_acc_id(user_id):
         cursor = connection.cursor()
-        cursor.execute("SELECT id FROM accounts WHERE user_id=? AND acc_num=?", (user_id, acc_num))
-        print(cursor.fetchone()[0])
-        
+        cursor.execute("SELECT id FROM accounts WHERE user_id=?", (user_id,))
+
+        acc_ids = list(map(int, [x[0] for x in cursor.fetchall()]))
+        print(acc_ids)
 
 
 if __name__ == "__main__":
-    delete_row(4)
+    # delete_row(4)
     # add_col("")
-    # get_acc_id("d7499ce3-5fa7-4e29-a97e-d1c5ed8b9b68" , 4)
+    
+
+    get_acc_id("d7499ce3-5fa7-4e29-a97e-d1c5ed8b9b68")

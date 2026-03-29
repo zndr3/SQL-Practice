@@ -4,7 +4,7 @@ import hashlib
 import os
 import base64
 import hmac
-from database.hash import *
+# from database.hash import *
 import uuid
 import pandas as pd
 
@@ -15,7 +15,7 @@ class UserExists(Exception):
     pass
 
 class Bank:
-    def __init__(self, db_path="bank_data.sqlite3", ):
+    def __init__(self, db_path="./simple_bank/bankl_data.sqlite3", ):
         self.conn = sqlite3.connect(db_path)
         self.conn.execute("PRAGMA foreign_keys = 1")
         self.cursor = self.conn.cursor()
@@ -174,10 +174,15 @@ class Bank:
         self.cursor.execute("SELECT id FROM accounts WHERE user_id=? AND acc_num=?", (user_id, acc_num))
         return self.cursor.fetchone()[0]
     
+    def get_acc_ids(self, user_id):
+        self.cursor.execute("SELECT id FROM accounts WHERE user_id=?", (user_id,))
+        acc_ids = list(map(int, [x[0] for x in self.cursor.fetchall()]))
+        return acc_ids
+    
     def deposit(self, acc_id, amount):
         self.cursor.execute("UPDATE accounts SET balance = balance + ? WHERE id = ?", (amount, acc_id))
         self.conn.commit()
-        self.record_transaction(acc_id, "Deposit", amount, f"Added {amount}")
+        self.record_transaction(acc_id, "Deposit", amount, f"Deposited {amount}")
 
     def withdraw(self, acc_id, amount):
         self.cursor.execute("UPDATE accounts SET balance = balance - ? WHERE id = ?", (amount, acc_id))
@@ -242,6 +247,19 @@ class Bank:
 
             except ValueError:
                 print("Invalid input. Please enter a valid account number.")
+    
+    def get_transactions(self, user_id):
+        acc_ids = self.get_acc_ids(user_id)
+
+        # Separate the query from the data
+        query = "SELECT type, amount, timestamp, desc FROM transactions WHERE acc_id IN (" + ",".join("?" * len(acc_ids)) + ")"
+        params = acc_ids
+
+        # Pass them into read_sql_query separately
+        df = pd.read_sql_query(query, self.conn, params=params)
+
+        print(df)
+        
                 
 
     def dashboard(self, user_id, username):
@@ -256,10 +274,11 @@ class Bank:
             print("1. Create Account")
             print("2. Close Account")
             print("3. Manage Account")
-            print("4. Logout")
+            print("4. View Transactiions")
+            print("5. Logout")
             choice = 0
 
-            while choice not in [1, 2, 3, 4]:
+            while choice not in [1, 2, 3, 4, 5]:
                 choice = input("Enter choice number: ")
                 if choice == '1':
                     self.create_account(user_id)
@@ -274,10 +293,14 @@ class Bank:
                     self.dashboard(user_id, username)
 
                 elif choice == '4':
+                    self.get_transactions(user_id)
+                    self.dashboard(user_id, username)
+
+                elif choice == '5':
                     break
                 
                 else:
-                    print("Invalid option. Please choose '1' '2' '3' or '4'.")
+                    print("Invalid option. Please choose '1' '2' '3' '4' or '5'")
                 
         else:
             print("You don't have an account:")
